@@ -77,8 +77,7 @@ fn scan_dirs() -> Vec<PathBuf> {
         .min_depth(1)
         .max_depth(1)
         .into_iter()
-        .filter_entry(|e| is_directory(e))
-        .collect();
+        .filter_entry(|e| is_directory(e));
 
     let paths = Vec::new();
 
