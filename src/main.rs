@@ -64,7 +64,10 @@ struct Document {
 //
 //
 fn main() {
-    unimplemented!();
+    let paths = scan_dirs();
+    for path in paths {
+        println!("{}", path.display());
+    }
 }
 
 fn is_directory(entry: &DirEntry) -> bool {
@@ -72,19 +75,23 @@ fn is_directory(entry: &DirEntry) -> bool {
 }
 
 fn scan_dirs() -> Vec<PathBuf> {
-    let development_path = "H:\\Development";
+    // let development_path = "H:\\Development";
+    let development_path = "./test";
     let projects = WalkDir::new(development_path)
         .min_depth(1)
         .max_depth(1)
         .into_iter()
         .filter_entry(|e| is_directory(e));
 
-    let paths = Vec::new();
-
-    return projects;
+    let mut paths_to_return = Vec::new();
+    for entry in projects {
+        let path = entry.unwrap().into_path();
+        paths_to_return.push(path);
+    }
+    paths_to_return
 }
 
-fn make_doc_struct_from_path(path: PathBuf) -> Document {}
+// fn make_doc_struct_from_path(path: PathBuf) -> Document {}
 // fn main() {
 //     let mut strings = vec!["string1", "string2", "string3"];
 //     let mut add_strings = vec![];
