@@ -1,13 +1,23 @@
 // use std::io::{stdin, stdout, Write};
 // #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use regex::Regex;
 use std::{
+    ffi::OsString,
     path::{Path, PathBuf},
     vec,
 };
 
+use dircpy::*;
+
 use eframe::egui;
 use walkdir::{DirEntry, WalkDir};
+
+#[derive(Clone)]
+struct SubFamily {
+    path: PathBuf,
+    documents: Vec<Document>,
+}
 
 #[derive(Clone)]
 struct Document {
@@ -64,9 +74,44 @@ struct Document {
 //
 //
 fn main() {
-    let paths = scan_dirs();
-    for path in paths {
-        println!("{}", path.display());
+    let subfamilies_to_file: Vec<Document> = Vec::new();
+
+    let revision_regex = Regex::new(r"Rev\d{1,}");
+    let number_regex = Regex::new(r"\d{1,}");
+
+    let family = scan_families();
+    println!("scanning for product families");
+    for path in family {
+        println!("{}", path.file_name().unwrap().to_str().unwrap());
+        println!("subfamilies found:");
+        let subfamilies = scan_subfamilies(path);
+        for sf in subfamilies {
+            let sf_struct = SubFamily {
+                path: sf,
+                documents: Vec::new(),
+            };
+            println!(
+                "subfamily: {}",
+                sf_struct.path.file_name().unwrap().to_str().unwrap()
+            );
+            let files = scan_files(sf_struct.path);
+            for file in files {
+                let document = Document {
+                    index: 0,
+                    path: file.clone(),
+                    revision: 0,
+                    name: file
+                        .file_name()
+                        .unwrap()
+                        .to_os_string()
+                        .into_string()
+                        .unwrap(),
+                };
+                println!("{}", file.display());
+            }
+        }
+        println!("next folder");
+        println!("");
     }
 }
 
@@ -74,21 +119,79 @@ fn is_directory(entry: &DirEntry) -> bool {
     entry.file_type().is_dir()
 }
 
-fn scan_dirs() -> Vec<PathBuf> {
+fn is_in_progress_folder(entry: &DirEntry) -> bool {
+    entry.file_name().to_str().unwrap().contains("_InProgress")
+}
+
+fn scan_families() -> Vec<PathBuf> {
+    // this function scans through all projects in the development folder to allow the user to
+    // select the project they are updating the dhf for
     // let development_path = "H:\\Development";
     let development_path = "./test";
-    let projects = WalkDir::new(development_path)
+    let families = WalkDir::new(development_path)
         .min_depth(1)
         .max_depth(1)
         .into_iter()
         .filter_entry(|e| is_directory(e));
 
     let mut paths_to_return = Vec::new();
-    for entry in projects {
-        let path = entry.unwrap().into_path();
+    for family in families {
+        let path = family.unwrap().into_path();
         paths_to_return.push(path);
     }
     paths_to_return
+}
+
+fn scan_subfamilies(path: PathBuf) -> Vec<PathBuf> {
+    // takes the path to a product family folder and scans the _InProgress directory for subfamily
+    // folders
+
+    // really ugly way of doing all thi but this makes it platform agnostic
+    let in_progress_folder = WalkDir::new(path)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(|entry| is_directory(entry) && is_in_progress_folder(entry));
+
+    let in_progress_folder = in_progress_folder.last().unwrap().unwrap().into_path();
+
+    let subfamilies = WalkDir::new(in_progress_folder)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(|e| is_directory(e));
+
+    let mut paths_to_return = Vec::new();
+    for subfamily in subfamilies {
+        let path = subfamily.unwrap().into_path();
+        paths_to_return.push(path);
+    }
+    paths_to_return
+}
+
+fn scan_files(path: PathBuf) -> Vec<PathBuf> {
+    // walks all the folders in the given directory. use this function to list all files in the
+    // _InProgress directory of the selected project
+    let files = WalkDir::new(path).min_depth(1).into_iter();
+    // .filter_entry(|e| !is_directory(e));
+
+    let mut paths_to_return = Vec::new();
+
+    for entry in files {
+        let result = entry.unwrap();
+        if result.file_type().is_dir() {
+            let path = result.into_path();
+            paths_to_return.push(path);
+        }
+    }
+    paths_to_return
+}
+
+fn collapse_to_complete_docs() {
+    // scans the provided list of docs and returns a list of those docs where a word doc and a pdf
+    // with the same name are present
+}
+
+fn backup(src: String, dest: String) {
+    copy_dir(src, dest);
 }
 
 // fn make_doc_struct_from_path(path: PathBuf) -> Document {}
