@@ -87,6 +87,7 @@ impl eframe::App for MyApp {
                 }
                 GUIState::FamilySelect => {
                     ui.heading("select product family to file:");
+
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for family in &self.product_families {
                             // println!("{}", &family.name);
@@ -99,17 +100,22 @@ impl eframe::App for MyApp {
                 }
                 GUIState::SubfamilySelect => {
                     ui.heading("select subfamilies to file:");
+                    if ui.button("go back").clicked() {
+                        self.state = GUIState::FamilySelect;
+                    }
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for subfamily in &mut self.family_to_file.subfamilies {
                             ui.horizontal(|ui| {
+                                ui.checkbox(&mut subfamily.to_file, "");
                                 ui.label(&subfamily.name);
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Max),
-                                    |ui| {
-                                        ui.checkbox(&mut subfamily.to_file, "to file");
-                                    },
-                                );
+                                // ui.with_layout(
+                                //     egui::Layout::right_to_left(egui::Align::Max),
+                                //     |ui| {
+                                //         ui.checkbox(&mut subfamily.to_file, "to file");
+                                //     },
+                                // );
                             });
+                            ui.separator();
                         }
                         if ui
                             .button("i have selected all the subfamilies i'd like to file")
@@ -130,25 +136,35 @@ impl eframe::App for MyApp {
                     // .vscroll(true)
                     // .show(ctx, |ui| {
                     ui.heading("select documents to file:");
+                    if ui.button("go back").clicked() {
+                        self.subfamilies_to_file.clear();
+                        self.state = GUIState::SubfamilySelect;
+                    }
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for subfamily in &mut self.subfamilies_to_file {
-                            ui.label(
-                                RichText::new(&subfamily.name).font(FontId::proportional(20.0)),
-                            );
-                            // ui.label(&subfamily.name);
-                            for document in &mut subfamily.documents {
-                                ui.horizontal(|ui| {
-                                    ui.label(&document.name);
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Max),
-                                        |ui| {
+                            // ui.label(
+                            // RichText::new(&subfamily.name).font(FontId::proportional(20.0)),
+                            // );
+                            ui.collapsing(
+                                RichText::new(&subfamily.name).font(FontId::proportional(14.0)),
+                                |ui| {
+                                    for document in &mut subfamily.documents {
+                                        ui.horizontal(|ui| {
                                             ui.checkbox(&mut document.to_add, "add");
                                             ui.checkbox(&mut document.to_update, "update");
-                                        },
-                                    );
-                                });
-                            }
-                            ui.separator();
+                                            ui.label(&document.name);
+                                            // ui.with_layout(
+                                            //     egui::Layout::right_to_left(egui::Align::Max),
+                                            //     |ui| {
+                                            //         ui.checkbox(&mut document.to_add, "add");
+                                            //         ui.checkbox(&mut document.to_update, "update");
+                                            //     },
+                                            // );
+                                        });
+                                        ui.separator();
+                                    }
+                                },
+                            );
                         }
                     });
                 }
@@ -400,7 +416,8 @@ fn scan_subfamilies(path: PathBuf) -> Option<Vec<PathBuf>> {
     let subfamilies = WalkDir::new(in_progress_folder)
         .sort_by_file_name()
         .min_depth(1)
-        .max_depth(1)
+        //make this controlled by a setting
+        .max_depth(2)
         .into_iter()
         .filter_entry(|e| is_directory(e));
 
