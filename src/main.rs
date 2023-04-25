@@ -106,14 +106,14 @@ impl eframe::App for MyApp {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for subfamily in &mut self.family_to_file.subfamilies {
                             ui.horizontal(|ui| {
-                                ui.checkbox(&mut subfamily.to_file, "");
+                                // ui.checkbox(&mut subfamily.to_file, "");
                                 ui.label(&subfamily.name);
-                                // ui.with_layout(
-                                //     egui::Layout::right_to_left(egui::Align::Max),
-                                //     |ui| {
-                                //         ui.checkbox(&mut subfamily.to_file, "to file");
-                                //     },
-                                // );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Max),
+                                    |ui| {
+                                        ui.checkbox(&mut subfamily.to_file, "to file");
+                                    },
+                                );
                             });
                             ui.separator();
                         }
@@ -150,16 +150,16 @@ impl eframe::App for MyApp {
                                 |ui| {
                                     for document in &mut subfamily.documents {
                                         ui.horizontal(|ui| {
-                                            ui.checkbox(&mut document.to_add, "add");
-                                            ui.checkbox(&mut document.to_update, "update");
+                                            // ui.checkbox(&mut document.to_add, "add");
+                                            // ui.checkbox(&mut document.to_update, "update");
                                             ui.label(&document.name);
-                                            // ui.with_layout(
-                                            //     egui::Layout::right_to_left(egui::Align::Max),
-                                            //     |ui| {
-                                            //         ui.checkbox(&mut document.to_add, "add");
-                                            //         ui.checkbox(&mut document.to_update, "update");
-                                            //     },
-                                            // );
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Max),
+                                                |ui| {
+                                                    ui.checkbox(&mut document.to_add, "add");
+                                                    ui.checkbox(&mut document.to_update, "update");
+                                                },
+                                            );
                                         });
                                         ui.separator();
                                     }
