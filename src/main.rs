@@ -4,6 +4,8 @@
 use regex::Regex;
 use std::{
     ffi::OsString,
+    fmt,
+    fs::rename,
     path::{Path, PathBuf},
     vec,
 };
@@ -22,6 +24,23 @@ enum GUIState {
 }
 
 #[derive(Clone)]
+enum DocType {
+    PDF,
+    WordDoc,
+    Other,
+}
+
+impl fmt::Display for DocType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DocType::PDF => write!(f, "pdf"),
+            DocType::WordDoc => write!(f, "word doc"),
+            DocType::Other => write!(f, "other"),
+        }
+    }
+}
+
+#[derive(Clone)]
 struct SubFamily {
     path: PathBuf,
     documents: Vec<Document>,
@@ -37,6 +56,7 @@ struct Document {
     name: String, // might need to be change
     to_add: bool,
     to_update: bool,
+    doc_type: DocType,
 }
 
 #[derive(Clone)]
@@ -157,7 +177,7 @@ impl eframe::App for MyApp {
                                                 egui::Layout::right_to_left(egui::Align::Max),
                                                 |ui| {
                                                     ui.checkbox(&mut document.to_add, "add");
-                                                    ui.checkbox(&mut document.to_update, "update");
+                                                    // ui.checkbox(&mut document.to_update, "update");
                                                 },
                                             );
                                         });
@@ -181,9 +201,6 @@ fn main() -> Result<(), eframe::Error> {
     };
 
     let mut app = MyApp::default();
-
-    let revision_regex = Regex::new(r"Rev\d{1,}");
-    let number_regex = Regex::new(r"\d{1,}");
 
     let families = scan_families();
     println!("scanning for product families");
@@ -227,23 +244,28 @@ fn main() -> Result<(), eframe::Error> {
                 to_file: false,
             };
 
-            println!("subfolder: {}", sf_struct.name);
+            // println!("subfolder: {}", sf_struct.name);
             let files = scan_files(sf_struct.path.clone());
             for file in files {
+                let file_name = name_string_from_dir_entry(&file);
                 let document = Document {
                     index: 0,
                     path: file.clone(),
-                    revision: 0,
-                    name: file
-                        .file_name()
-                        .unwrap()
-                        .to_os_string()
-                        .into_string()
-                        .unwrap(),
+                    revision: {
+                        match find_revision_from_path_buf(&file) {
+                            Some(i) => i,
+                            None => 0,
+                        }
+                    },
+                    doc_type: doc_type_from_string(&file_name),
+                    name: file_name,
                     to_update: false,
                     to_add: false,
                 };
-                // println!("document: {}", document.name);
+                println!("document: {}", document.name);
+                println!("path: {}", document.path.display());
+                println!("revision: {}", document.revision);
+                println!("type: {}", document.doc_type);
                 sf_struct.documents.push(document);
             }
             family_struct.subfamilies.push(sf_struct);
@@ -258,8 +280,48 @@ fn is_directory(entry: &DirEntry) -> bool {
     entry.file_type().is_dir()
 }
 
+fn doc_type_from_string(name: &String) -> DocType {
+    if name.contains(".docx") {
+        DocType::WordDoc
+    } else if name.contains(".pdf") {
+        DocType::PDF
+    } else {
+        DocType::Other
+    }
+}
+
+fn find_revision_from_path_buf(file: &PathBuf) -> Option<i32> {
+    let revision_regex = Regex::new(r"Rev\d{1,}").unwrap();
+    let number_regex = Regex::new(r"\d{1,}").unwrap();
+    let file_name = file.file_name().unwrap().to_str().unwrap();
+    let rev_position = revision_regex.find(file_name);
+    match rev_position {
+        Some(v) => {
+            let rev_text = &file_name[v.start()..v.end()];
+            let number_position = number_regex.find(rev_text).unwrap();
+            let rev: Result<i32, _> =
+                rev_text[number_position.start()..number_position.end()].parse();
+            if let Ok(r) = rev {
+                Some(r)
+            } else {
+                None
+            }
+        }
+        None => None,
+    }
+}
+
 fn is_in_progress_folder(entry: &DirEntry) -> bool {
     entry.file_name().to_str().unwrap().contains("_InProgress")
+}
+
+fn name_string_from_dir_entry(entry: &PathBuf) -> String {
+    entry
+        .file_name()
+        .unwrap()
+        .to_os_string()
+        .into_string()
+        .unwrap()
 }
 
 fn extended_family_search_filter(entry: &DirEntry, found_families: &mut Vec<PathBuf>) -> bool {
@@ -291,26 +353,6 @@ fn extended_family_search_filter(entry: &DirEntry, found_families: &mut Vec<Path
     }
     filtered
 }
-
-// fn extended_family_search_filter_2(entry: &DirEntry) -> bool {
-//     let descendants = WalkDir::new(entry.path())
-//         .min_depth(1)
-//         .max_depth(2)
-//         .into_iter()
-//         .filter_entry(|e| extended_family_search_filter(e));
-//     for descendant in descendants {
-//         if descendant
-//             .unwrap()
-//             .file_name()
-//             .to_str()
-//             .unwrap()
-//             .contains("DHF & Tech File Word Docs")
-//         {
-//             return true;
-//         }
-//     }
-//     false
-// }
 
 fn is_valid_file(entry: &DirEntry) -> bool {
     let name = entry.file_name().to_str().unwrap();
@@ -347,32 +389,6 @@ fn scan_families() -> Vec<PathBuf> {
             path.contains("DHF & Tech File Word Docs")
         });
 
-    // for family in families_found {
-    //     println!("family: {}", family.display());
-    // }
-    // let families = Vec::new();
-
-    // for r in pass_1 {
-    //     println!("result: {}", r.unwrap().path().parent().unwrap().display());
-    // }
-
-    // for result in pass_1 {
-    //     let result = result.unwrap();
-    //     println!("result: {}", result.file_name().to_str().unwrap());
-    //     let descendants = WalkDir::new(result.path())
-    //         .min_depth(1)
-    //         .max_depth(1)
-    //         .into_iter().filter(predicate);
-    //     for descendant in descendants {
-    //         let descendant = descendant.unwrap();
-    //         println!(
-    //             "descendant: {}",
-    //             descendant.file_name().to_str().unwrap()
-    //         )
-    //         let pass_2 = WalkDir::new(descendant).min_depth(1).max_depth(depth)
-    //     }
-    // }
-
     let mut paths_to_return = Vec::new();
     for r in pass_1 {
         let result = r.unwrap();
@@ -387,17 +403,6 @@ fn scan_subfamilies(path: PathBuf) -> Option<Vec<PathBuf>> {
     // takes the path to a product family folder and scans the _InProgress directory for subfamily
     // folders
 
-    // really ugly way of doing all this but this makes it platform agnostic
-    // let in_progress_folder = WalkDir::new(path)
-    //     .min_depth(1)
-    //     .into_iter()
-    //     .filter_entry(|entry| is_directory(entry));
-
-    // let folders = WalkDir::new(path)
-    //     .min_depth(1)
-    //     .into_iter()
-    //     .filter_entry(|e| is_directory(e));
-
     // println!("path: {}", path.display());
 
     let in_progress_folder = path.join("DHF & Tech File Word Docs\\_InProgress");
@@ -405,13 +410,6 @@ fn scan_subfamilies(path: PathBuf) -> Option<Vec<PathBuf>> {
     if !in_progress_folder.exists() {
         return None;
     }
-
-    // println!("{}", in_progress_folder.display());
-
-    // let in_progress_folder = in_progress_folder.last()?.unwrap().into_path();
-    // println!("got past");
-    //
-    // let subfamily_regex = regex::new(r"(\D\d*)*")
 
     let subfamilies = WalkDir::new(in_progress_folder)
         .sort_by_file_name()
@@ -458,6 +456,16 @@ fn backup(src: String, dest: String) {
     copy_dir(src, dest);
 }
 
+// fn add_doc(doc: Document, family: Family) -> Result<String, String> {
+//     doc.path;
+//     rename(from, to)
+// }
+//
+// fn update_doc(doc: Document, family: Family) -> Result<String, String> {}
+
+fn match_doc_name_to_dhf_path() {}
+
+// fn match_doc_name_to_tech_file_path(doc_path: PathBuf) -> PathBuf {}
 // fn make_doc_struct_from_path(path: PathBuf) -> Document {}
 // fn main() {
 //     let mut strings = vec!["string1", "string2", "string3"];
